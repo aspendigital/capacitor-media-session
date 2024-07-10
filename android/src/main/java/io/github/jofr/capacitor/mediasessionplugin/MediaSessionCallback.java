@@ -28,16 +28,19 @@ public class MediaSessionCallback extends MediaSessionCompat.Callback {
         JSObject data = new JSObject();
         data.put("seekTime", (double) pos/1000.0);
         plugin.actionCallback("seekto", data);
+        plugin.updatePlaybackStatePosition(pos);
     }
 
     @Override
     public void onRewind() {
         plugin.actionCallback("seekbackward");
+        plugin.updatePlaybackState();
     }
 
     @Override
     public void onFastForward() {
         plugin.actionCallback("seekforward");
+        plugin.updatePlaybackState();
     }
 
     @Override

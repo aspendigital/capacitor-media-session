@@ -145,14 +145,25 @@ public class MediaSessionPlugin extends Plugin {
         if (service != null) {
             if (playbackState.equals("playing")) {
                 service.setPlaybackState(PlaybackStateCompat.STATE_PLAYING);
-                service.update();
             } else if (playbackState.equals("paused")) {
                 service.setPlaybackState(PlaybackStateCompat.STATE_PAUSED);
-                service.update();
             } else {
                 service.setPlaybackState(PlaybackStateCompat.STATE_NONE);
-                service.update();
             }
+            service.update();
+        }
+    }
+
+    public void updatePlaybackStatePosition(long pos) {
+        if (service != null) {
+            service.setPosition(pos);
+            service.update();
+        }
+    }
+
+    public void updatePlaybackState() {
+        if (service != null) {
+            service.updatePlaybackState();
         }
     }
 
@@ -188,7 +199,10 @@ public class MediaSessionPlugin extends Plugin {
         position = call.getDouble("position", 0.0);
         playbackRate = call.getFloat("playbackRate", 1.0F);
 
-        if (service != null) { updateServicePositionState(); }
+        if (service != null) {
+            updateServicePositionState();
+        }
+
         call.resolve();
     }
 

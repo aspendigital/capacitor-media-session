@@ -174,10 +174,16 @@ public class MediaSessionService extends Service {
 
     public void setPlaybackState(int playbackState) {
         if (this.playbackState != playbackState) {
-            this.playbackState = playbackState;
-            playbackStateUpdate = true;
-            possibleActionsUpdate = true;
-        }
+          this.playbackState = playbackState;
+          playbackStateUpdate = true;
+          possibleActionsUpdate = true;
+
+          if (playbackState == PlaybackStateCompat.STATE_PAUSED) {
+              updatePlaybackState();
+          } else {
+              update();
+          }
+      }
     }
 
     public void setTitle(String title) {
@@ -232,6 +238,14 @@ public class MediaSessionService extends Service {
         }
     }
 
+    public void updatePlaybackState() {
+        if (playbackStateBuilder != null) {
+            playbackStateBuilder.setState(this.playbackState, this.position, this.playbackSpeed);
+            PlaybackStateCompat newState = playbackStateBuilder.build();
+            mediaSession.setPlaybackState(newState);
+        }
+    }
+
     @SuppressLint("RestrictedApi")
     public void update() {
         if (possibleActionsUpdate) {
@@ -279,6 +293,7 @@ public class MediaSessionService extends Service {
                 }
             }
 
+            updatePossibleActionsInternal();
             possibleActionsUpdate = false;
             playbackStateUpdate = true;
             notificationUpdate = true;
@@ -287,6 +302,7 @@ public class MediaSessionService extends Service {
         if (playbackStateUpdate && playbackStateBuilder != null) {
             playbackStateBuilder.setState(this.playbackState, this.position, this.playbackSpeed);
             mediaSession.setPlaybackState(playbackStateBuilder.build());
+            updatePlaybackState();
             playbackStateUpdate = false;
         }
 
@@ -298,6 +314,7 @@ public class MediaSessionService extends Service {
                     .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, artwork)
                     .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration);
             mediaSession.setMetadata(mediaMetadataBuilder.build());
+            updateMediaMetadata();
             mediaMetadataUpdate = false;
         }
 
@@ -307,7 +324,87 @@ public class MediaSessionService extends Service {
                     .setContentText(artist + " - " + album)
                     .setLargeIcon(artwork);
             notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
+            updateNotification();
             notificationUpdate = false;
+        }
+    }
+
+    private void updatePossibleActionsInternal() {
+        if (notificationBuilder != null) {
+            notificationBuilder.mActions.clear();
+        }
+
+        long activePlaybackStateActions =
+            PlaybackStateCompat.ACTION_PLAY |
+            PlaybackStateCompat.ACTION_PLAY_PAUSE |
+            PlaybackStateCompat.ACTION_PAUSE |
+            PlaybackStateCompat.ACTION_STOP |
+            PlaybackStateCompat.ACTION_REWIND |
+            PlaybackStateCompat.ACTION_FAST_FORWARD |
+            PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS |
+            PlaybackStateCompat.ACTION_SKIP_TO_NEXT |
+            PlaybackStateCompat.ACTION_SEEK_TO;
+
+        int[] activeCompactViewActionIndices = new int[3];
+
+        int notificationActionIndex = 0;
+        int compactNotificationActionIndicesIndex = 0;
+        for (String actionName : possibleActions) {
+            if (plugin != null && plugin.hasActionHandler(actionName)) {
+                if (actionName.equals("play") && playbackState != PlaybackStateCompat.STATE_PAUSED) {
+                    continue;
+                }
+                if (actionName.equals("pause") && playbackState != PlaybackStateCompat.STATE_PLAYING) {
+                    continue;
+                }
+
+                if (playbackStateActions.containsKey(actionName)) {
+                    activePlaybackStateActions = activePlaybackStateActions | playbackStateActions.get(actionName);
+                }
+
+                if (notificationActions.containsKey(actionName)) {
+                    notificationBuilder.addAction(notificationActions.get(actionName));
+                    if (possibleCompactViewActions.contains(actionName) && compactNotificationActionIndicesIndex < 3) {
+                        activeCompactViewActionIndices[compactNotificationActionIndicesIndex] = notificationActionIndex;
+                        compactNotificationActionIndicesIndex++;
+                    }
+                    notificationActionIndex++;
+                }
+            }
+        }
+
+        if (playbackStateBuilder != null) {
+            playbackStateBuilder.setActions(activePlaybackStateActions);
+        }
+        if (notificationStyle != null) {
+            if (compactNotificationActionIndicesIndex > 0) {
+                notificationStyle.setShowActionsInCompactView(Arrays.copyOfRange(activeCompactViewActionIndices, 0, compactNotificationActionIndicesIndex));
+            } else {
+                notificationStyle.setShowActionsInCompactView();
+            }
+        }
+    }
+
+    private void updateMediaMetadata() {
+        if (mediaMetadataBuilder != null) {
+            mediaMetadataBuilder
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, title)
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, artist)
+                .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, album)
+                .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, artwork)
+                .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration);
+
+            mediaSession.setMetadata(mediaMetadataBuilder.build());
+        }
+    }
+
+    private void updateNotification() {
+        if (notificationBuilder != null) {
+            notificationBuilder
+                .setContentTitle(title)
+                .setContentText(artist + " - " + album)
+                .setLargeIcon(artwork);
+            notificationManager.notify(NOTIFICATION_ID, notificationBuilder.build());
         }
     }
 
